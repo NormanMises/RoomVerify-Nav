@@ -17,7 +17,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "torch == 2.0.0",
+    "torch == 2.13.0",
     "torchvision == 0.15.1",
     "numpy == 1.26.4",
     "openai == 1.82.1",
@@ -27,12 +27,12 @@ dependencies = [
     "flask >= 2.3.2",
     "seaborn >= 0.12.2",  # required by yolov7
     "open3d >= 0.17.0",
-    "transformers == 4.26.0",  # higher versions than 4.26.0 "break" BLIP-2 in LAVIS
+    "transformers == 5.10.1",  # higher versions than 4.26.0 "break" BLIP-2 in LAVIS
     "timm == 0.4.12",
     "frontier_exploration @ git+https://github.com/naokiyokoyama/frontier_exploration.git",
     "mobile_sam @ git+https://github.com/ChaoningZhang/MobileSAM.git",
     "depth_camera_filtering @ git+https://github.com/naokiyokoyama/depth_camera_filtering",
-    "opencv-python == 4.5.5.64"
+    "opencv-python == 4.8.1.78"
 ]
 
 [project.optional-dependencies]
