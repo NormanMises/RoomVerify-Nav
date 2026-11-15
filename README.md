@@ -39,10 +39,7 @@ git clone https://github.com/IDEA-Research/GroundingDINO.git
 pip install --no-build-isolation -e ./GroundingDINO
 
 git clone https://github.com/WongKinYiu/yolov7.git
-export PYTHONPATH="$PWD"
 ```
-
-Run the remaining commands from the repository root with `roomverify-nav` active.
 
 ## Download the datasets
 

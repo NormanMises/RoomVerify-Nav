@@ -296,25 +296,16 @@ class BaseObjectNavPolicy(BasePolicy):
         robot_xy = self._observations_cache["robot_xy"]
         goal = self._get_navigation_goal(robot_xy)
 
-        # 模式切换优先级：
-        # 1) initialize：episode 开始时先执行子类定义的初始化动作。
-        # 2) navigate：一旦拿到目标点，立即抢占 scan / explore。
-        # 3) scan：已经开始的 360 扫描会持续到结束，再回落到 explore。
-        # 4) explore：默认兜底模式；过程中可以在合适的 frontier 上临时插入 scan。
         if not self._done_initializing:  # Initialize
             mode = "initialize"
             pointnav_action = self._initialize()
         elif goal is not None:
-            # 一旦有合法 goal，就立刻终止当前 scan，并清空待触发的 scan 候选，
-            # 避免已经缓存的 frontier 扫描在切回导航后又被误触发。
             if self._scan_active:
                 self._stop_360_scan()
             self._clear_pending_360_scan(clear_candidate=True)
             mode = "navigate"
             pointnav_action = self._pointnav(goal[:2], stop=True, detections=detections[0] if detections else None)
         elif self._scan_active:
-            # scan 一旦启动，会跨 step 持续执行，直到 _perform_360_scan()
-            # 返回 None 表示扫描完成，此时才退回普通 explore。
             mode = "scan"
             pointnav_action = self._perform_360_scan()
             if pointnav_action is None:
@@ -323,9 +314,6 @@ class BaseObjectNavPolicy(BasePolicy):
         else:  # Haven't found target object yet
             mode = "explore"
             if self._should_perform_360_scan_in_explore(observations):
-                # explore 阶段如果判断当前 frontier 值得做一次原地 360 扫描，
-                # 会在当前 step 直接启动 scan 并执行第一步转向；如果 scan 立刻
-                # no-op，则本 step 退回普通 explore 动作。
                 self._start_360_scan()
                 mode = "scan"
                 pointnav_action = self._perform_360_scan()
@@ -734,7 +722,6 @@ class BaseObjectNavPolicy(BasePolicy):
         if self._compute_frontiers:
             policy_info["obstacle_map"] = cv2.cvtColor(self._obstacle_map.visualize(), cv2.COLOR_BGR2RGB)
 
-        # 添加 BLIP2 提示词到视频标注（仅本 step 内实际发送的 prompt）
         if self._step_blip2_prompt:
             policy_info["render_below_images"].append("blip2_prompt")
             policy_info["blip2_prompt"] = self._step_blip2_prompt
@@ -801,12 +788,10 @@ class BaseObjectNavPolicy(BasePolicy):
 
     def _get_object_detections(self, img: np.ndarray) -> ObjectDetections:
         target_classes_raw = self._target_object.split("|")
-        # GroundingDINO/YOLO 类名通常是自然语言（空格），避免使用下划线造成严格匹配失败
         target_classes = [c.replace("_", " ") for c in target_classes_raw]
         has_coco = any(c in COCO_CLASSES for c in target_classes) and self._load_yolo
         has_non_coco = any(c not in COCO_CLASSES for c in target_classes)
 
-        # GroundingDINO caption 需要用 " . " 分隔并以 " ." 结尾；为空会导致全部被 filter 掉
         gdino_caption = self._non_coco_caption.strip()
         if not gdino_caption:
             gdino_caption = " . ".join(target_classes) + " ."
@@ -840,24 +825,15 @@ class BaseObjectNavPolicy(BasePolicy):
         return detections
 
     def _should_perform_360_scan_in_explore(self, observations: Dict) -> bool:
-        # 总开关未启用，或者 scan 已经在执行中时，explore 分支不能再启动新的 scan。
-        # 这里直接返回，避免 explore/scan 两套控制流交错。
         if not self._dynamic_relocation_enabled or self._scan_active:
             return False
 
-        # 先把“当前正在追的 frontier”同步成 scan candidate；如果机器人已经真正走到
-        # candidate 附近，再把它升级为 pending scan。这样 scan 的触发时机是“到达后”，
-        # 而不是“选中 frontier 的当下”。
         self._sync_scan_frontier_candidate()
         self._arm_pending_360_scan_if_reached()
 
-        # 还没有形成待执行的 pending scan，说明当前没有满足“到达 frontier 后再扫”
-        # 的前提，explore 继续正常走。
         if self._scan_pending_frontier_key is None:
             return False
 
-        # 单个 episode 的 scan 预算控制。即使后面还有高价值 frontier，也不允许无限
-        # 触发原地扫描，避免把探索 budget 过多消耗在旋转上。
         if self._scan_max_scans_per_episode > 0 and self._scan_num_triggers >= self._scan_max_scans_per_episode:
             self._record_scan_gate_reject("budget_exhausted")
             self._add_step_debug(
@@ -866,8 +842,6 @@ class BaseObjectNavPolicy(BasePolicy):
             self._clear_pending_360_scan()
             return False
 
-        # 同一个 frontier 在 cooldown 窗口内不重复触发。这里不清 pending，是为了保留
-        # 这次候选 frontier 的身份，等 cooldown 过后再自然评估。
         if (
             self._scan_pending_frontier_key == self._scan_last_frontier_key
             and int(self._num_steps) - int(self._scan_last_trigger_step) < self._scan_cooldown_steps
@@ -878,8 +852,6 @@ class BaseObjectNavPolicy(BasePolicy):
         frontier_xy = self._scan_pending_frontier.copy()
         region_key = self._get_scan_region_key(frontier_xy)
         last_region_step = self._scan_region_last_trigger_steps.get(region_key)
-        # 区域级去重：frontier 本身可能随着 explored 区域扩大而轻微漂移，但本质上还是
-        # 同一片局部未知区域。这里按量化后的 region_key 去重，避免相邻 frontier 反复扫。
         if (
             last_region_step is not None
             and self._scan_region_revisit_steps > 0
@@ -894,16 +866,12 @@ class BaseObjectNavPolicy(BasePolicy):
             self._clear_pending_360_scan()
             return False
 
-        # 最后再做“值不值得扫”的 gate。子类可以基于 frontier value / 全图统计量
-        # 否决这次 scan；一旦否决，就清掉 pending，避免旧 frontier 卡在队列里反复尝试。
         if not self._scan_frontier_value_allows(observations, frontier_xy):
             self._record_scan_gate_reject("value_gate", key=str(self._scan_pending_frontier_key))
             self._add_step_debug(f"ScanGate: drop_pending(frontier={self._scan_pending_frontier_key})")
             self._clear_pending_360_scan()
             return False
 
-        # 走到这里，说明：已到达候选 frontier、没超预算、没撞 cooldown、不是近期重复区域，
-        # 且 frontier value 也通过了子类 gate。本 step 允许进入 scan。
         return True
 
     def _scan_frontier_value_allows(self, observations: Dict, frontier_xy: np.ndarray) -> bool:
@@ -965,10 +933,6 @@ class BaseObjectNavPolicy(BasePolicy):
         self._reset_scan_gate_reject_dedup()
 
     def _arm_pending_360_scan_if_reached(self) -> None:
-        # 这里不是“看到一个合适 frontier 就立刻扫描”，而是分两步：
-        # 1) _sync_scan_frontier_candidate() 先记录当前想观察的 frontier；
-        # 2) 只有机器人真的走到该 frontier 附近后，才把它升级为 pending scan。
-        # 这样可以避免机器人还在远处时就原地转圈扫描，浪费 step。
         if self._scan_candidate_frontier_key is None or self._scan_pending_frontier_key is not None:
             return
 
@@ -976,18 +940,14 @@ class BaseObjectNavPolicy(BasePolicy):
             self._scan_candidate_frontier_key == self._scan_last_frontier_key
             and int(self._num_steps) - int(self._scan_last_trigger_step) < self._scan_cooldown_steps
         ):
-            # 同一个 frontier 在 cooldown 窗口内不重复 arm，避免刚扫描完又立刻触发。
             self._record_scan_gate_reject("frontier_cooldown", key=str(self._scan_candidate_frontier_key))
             return
 
         robot_xy = np.asarray(self._observations_cache["robot_xy"], dtype=np.float32).reshape(-1)
         reach_dist = self._get_scan_frontier_reach_dist()
         if float(np.linalg.norm(robot_xy - self._scan_candidate_frontier)) > reach_dist:
-            # 还没真正走到 frontier 附近时，只保留 candidate，不启动 pending scan。
             return
 
-        # 到达 frontier 后，冻结这次待执行的 scan 目标。
-        # 后续即使 best frontier 继续变化，本次 pending scan 也不会被漂移的候选点打断。
         self._scan_pending_frontier = self._scan_candidate_frontier.copy()
         self._scan_pending_frontier_key = self._scan_candidate_frontier_key
         self._scan_candidate_frontier = np.zeros(2, dtype=np.float32)
@@ -1083,7 +1043,7 @@ class BaseObjectNavPolicy(BasePolicy):
             "pointgoal_with_gps_compass": rho_theta_tensor,
         }
         self._policy_info["rho_theta"] = np.array([rho, theta])
-        if stop:  # 在 navigate 模式时输出距离信息
+        if stop:
             print(f"[Navigate] Distance to target: {rho:.2f}m (stop_radius: {self._pointnav_stop_radius}m)")
         if rho < self._pointnav_stop_radius and stop:
             if self._should_run_stop_verification(rho):

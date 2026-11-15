@@ -250,7 +250,6 @@ def color_point_cloud_on_map(infos: List[Dict[str, Any]], policy_info: List[Dict
 
     new_map = infos[0]["top_down_map"]["map"].copy()
 
-    # 边界检查：过滤掉超出地图范围的点
     if len(grid_xy) > 0:
         h, w = new_map.shape[:2]
         valid_mask = (

@@ -153,7 +153,6 @@ class VLFMTrainer(PPOTrainer):
         if config.habitat_baselines.verbose:
             logger.info(f"env config: {OmegaConf.to_yaml(config)}")
 
-        # habitat_baselines 的 construct_envs 会原地 shuffle 显式指定的 content_scenes（分片评测），需要可写 config。
         with read_write(config):
             self._init_envs(config, is_eval=True)
 

@@ -136,12 +136,10 @@ class OpenAIClient:
 #     parser = argparse.ArgumentParser(description="Test OpenAI /v1/chat/completions JSON mode.")
 #     parser.add_argument(
 #         "--system",
-#         default="你是一只猫娘 designed to output JSON only.",
 #         help="System prompt (should force pure JSON output).",
 #     )
 #     parser.add_argument(
 #         "--user",
-#         default='说句话吧',
 #         help="User prompt.",
 #     )
 #     args = parser.parse_args()

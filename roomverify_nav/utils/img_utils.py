@@ -79,7 +79,6 @@ def monochannel_to_inferno_rgb(image: np.ndarray) -> np.ndarray:
     else:
         normalized_image = (image - min_val) / peak_to_peak
 
-    # 直接应用 COLORMAP_JET：低值→蓝色，高值→红色
     colormap = cv2.applyColorMap((normalized_image * 255).astype(np.uint8), cv2.COLORMAP_JET)
 
     return colormap

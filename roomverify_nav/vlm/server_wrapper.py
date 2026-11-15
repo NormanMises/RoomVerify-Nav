@@ -84,7 +84,6 @@ def host_model(model: Any, name: str, port: int = 5000) -> None:
     Hosts a model as a REST API using Flask.
     """
     app = Flask(__name__)
-    # 多个评测进程共用一个服务时串行推理，避免并发请求在同一个模型上互相抢占 GPU。
     inference_lock = threading.Lock()
 
     @app.route(f"/{name}", methods=["POST"])
@@ -204,7 +203,6 @@ def _send_request(url: str, **kwargs: Any) -> dict:
         start_time = time.time()
         while True:
             try:
-                # 连接超时 1 秒；读超时 20 秒，等待排队中的推理完成，不在服务端忙时重复提交请求。
                 resp = requests.post(url, headers=headers, json=payload, timeout=(1, 20))
                 if resp.status_code == 200:
                     result = resp.json()

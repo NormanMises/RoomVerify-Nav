@@ -1,26 +1,6 @@
 # Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
 
-"""
-运行时间统计工具
-
-通过环境变量 DEBUG_TIMING=1 启用时间统计输出。
-
-使用方式：
-1. 装饰器方式：
-    @timed
-    def my_function():
-        ...
-
-2. 上下文管理器方式：
-    with TimingContext("my_operation"):
-        ...
-
-3. 手动计时：
-    timer = Timer("my_function")
-    timer.start()
-    ...
-    timer.stop()  # 自动打印耗时
-"""
+"""Optional execution timing controlled by DEBUG_TIMING."""
 
 import os
 import time
@@ -29,43 +9,39 @@ from typing import Any, Callable, Dict, Optional, TypeVar
 
 from icecream import ic
 
-# 类型变量用于装饰器
 F = TypeVar("F", bound=Callable[..., Any])
 
-# 全局开关：通过环境变量控制
 _TIMING_ENABLED: Optional[bool] = None
 
 
 def is_timing_enabled() -> bool:
-    """检查是否启用时间统计（懒加载，只读一次环境变量）"""
+    """Read and cache whether timing output is enabled."""
     global _TIMING_ENABLED
     if _TIMING_ENABLED is None:
         _TIMING_ENABLED = os.environ.get("DEBUG_TIMING", "0") == "1"
     return _TIMING_ENABLED
 
 
-# 累计统计信息
 _timing_stats: Dict[str, Dict[str, float]] = {}
 
 
 def get_timing_stats() -> Dict[str, Dict[str, float]]:
-    """获取所有函数的累计统计信息"""
+    """Return accumulated timing statistics."""
     return _timing_stats.copy()
 
 
 def reset_timing_stats() -> None:
-    """重置统计信息"""
+    """Clear accumulated timing statistics."""
     global _timing_stats
     _timing_stats = {}
 
 
 def print_timing_summary() -> None:
-    """打印所有函数的统计摘要"""
+    """Print accumulated timing statistics."""
     if not _timing_stats:
         ic("No timing data collected")
         return
 
-    # 构建摘要表格
     lines = [
         "\n" + "=" * 60,
         "[TIMING SUMMARY]",
@@ -83,8 +59,7 @@ def print_timing_summary() -> None:
 
 
 def _record_timing(name: str, elapsed_ms: float, extra_info: str = "") -> None:
-    """记录并打印计时结果"""
-    # 更新累计统计
+    """Record and print one timing measurement."""
     if name not in _timing_stats:
         _timing_stats[name] = {"count": 0, "total": 0.0, "min": float("inf"), "max": 0.0}
 
@@ -94,7 +69,6 @@ def _record_timing(name: str, elapsed_ms: float, extra_info: str = "") -> None:
     stats["min"] = min(stats["min"], elapsed_ms)
     stats["max"] = max(stats["max"], elapsed_ms)
 
-    # 打印当前调用 - 使用 ic 风格
     ms = f"{elapsed_ms:.2f}ms"
     if extra_info:
         ic(name, ms, extra_info)
@@ -103,14 +77,7 @@ def _record_timing(name: str, elapsed_ms: float, extra_info: str = "") -> None:
 
 
 def timed(func: F) -> F:
-    """
-    装饰器：自动统计函数执行时间
-
-    使用方式：
-        @timed
-        def my_function():
-            ...
-    """
+    """Measure function execution time when timing is enabled."""
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -123,7 +90,6 @@ def timed(func: F) -> F:
             return result
         finally:
             elapsed_ms = (time.perf_counter() - start) * 1000
-            # 获取类名（如果是方法）
             if args and hasattr(args[0], "__class__"):
                 class_name = args[0].__class__.__name__
                 name = f"{class_name}.{func.__name__}()"
@@ -135,13 +101,7 @@ def timed(func: F) -> F:
 
 
 class TimingContext:
-    """
-    上下文管理器：统计代码块执行时间
-
-    使用方式：
-        with TimingContext("my_operation"):
-            ...
-    """
+    """Measure a code block when timing is enabled."""
 
     def __init__(self, name: str, extra_info: str = ""):
         self.name = name

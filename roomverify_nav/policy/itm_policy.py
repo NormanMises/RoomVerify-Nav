@@ -63,13 +63,13 @@ class BaseITMPolicy(BaseObjectNavPolicy):
         figure_dump_dir = os.environ.get("FIGURE_DUMP_DIR", "").strip()
         frontier_rerank_enabled = os.environ.get("PROMPTING_FRONTIER_RERANK", "0") == "1"
         if figure_dump_dir and not frontier_rerank_enabled:
-            raise ValueError("开启 FIGURE_DUMP_DIR 导出论文插图数据时，必须同时设置 PROMPTING_FRONTIER_RERANK=1。")
+            raise ValueError("Exporting figure data with FIGURE_DUMP_DIR requires PROMPTING_FRONTIER_RERANK=1.")
         super().__init__(*args, **kwargs)
         self._figure_dump = FigureDump(figure_dump_dir) if figure_dump_dir else None
         self._itm = BLIP2ITMClient(port=int(os.environ.get("BLIP2ITM_PORT", "12182")))
         self._text_prompt = text_prompt
         # Context-aware prompting components
-        self.room_tracker = RoomStateTracker(window_size=12, change_threshold=0.6)  # 保留最近10步
+        self.room_tracker = RoomStateTracker(window_size=12, change_threshold=0.6)
         self._target_guidance_provider = TargetGuidanceProvider()
         self._value_map: ValueMap = ValueMap(
             value_channels=len(text_prompt.split(PROMPT_SEPARATOR)),
@@ -78,10 +78,7 @@ class BaseITMPolicy(BaseObjectNavPolicy):
         )
         self._acyclic_enforcer = make_acyclic_enforcer()
 
-        # 场景物体检测的置信度阈值
         self._scene_detection_threshold: float = float(os.environ.get("SCENE_DETECTION_THRESHOLD", "0.5"))
-        # 场景物体检测 bbox 面积下限（相对整图面积的比例）
-        # 目的：抑制大量“小框噪声”（弱证据/远处误检）污染 room_dist
         self._scene_detection_min_bbox_area_ratio: float = float(
             os.environ.get("SCENE_DETECTION_MIN_BBOX_AREA_RATIO", "0.002")
         )
@@ -156,18 +153,7 @@ class BaseITMPolicy(BaseObjectNavPolicy):
             )
 
     def _detect_scene_objects(self, rgb: np.ndarray) -> List[str]:
-        """
-        使用 YOLOv7 检测场景中的室内物体（用于房间推理）。
-
-        与目标物体检测不同，这里检测所有可见的室内物体，
-        而不仅仅是导航目标。
-
-        Args:
-            rgb: RGB 图像
-
-        Returns:
-            检测到的室内物体类别列表（可能包含重复）
-        """
+        """Detect visible indoor objects for room inference."""
         try:
             detections = self._predict_yolov7_cached(rgb)
             detections.filter_by_conf(self._scene_detection_threshold)
@@ -201,7 +187,6 @@ class BaseITMPolicy(BaseObjectNavPolicy):
             return merged_objects
 
         except Exception as e:
-            # 检测失败时返回空列表，不影响导航
             if os.environ.get("DEBUG_ROOM_REASONER") == "1":
                 print(f"[Scene Detection] Error: {e}")
             return []
@@ -414,7 +399,7 @@ class BaseITMPolicy(BaseObjectNavPolicy):
 class ITMPolicy(BaseITMPolicy):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._frontier_map: FrontierMap = FrontierMap()  # 前沿点管理系统
+        self._frontier_map: FrontierMap = FrontierMap()
 
     def act(
         self,
@@ -609,14 +594,14 @@ class ITMPolicyV2(BaseITMPolicy):
                 else:
                     delta = 0.2 * raw
                 scale = float(np.clip(1.0 + alpha * delta, 0.8, 1.4))
-                compats[j] = float(compat)  # 纯 debug 用，保留房间兼容度
-                incompats[j] = float(incompat)  # 纯 debug 用，保留房间不兼容度
-                obs_confs[j] = float(obs_conf)  # 纯 debug 用，保留观测置信
-                raws[j] = float(raw)  # 纯 debug 用，保留 raw room bonus
+                compats[j] = float(compat)
+                incompats[j] = float(incompat)
+                obs_confs[j] = float(obs_conf)
+                raws[j] = float(raw)
                 room_dist_summaries[j] = ",".join(f"{room}:{prob:.2f}" for room, prob in dist_sorted[:3]) or "empty"
                 # ic(dist_sorted, obs_conf, compat, incompat, scale)
 
-            scales[j] = float(scale)  # 纯 debug 用，用来在 overlay 里查看缩放因子
+            scales[j] = float(scale)
 
             final_scores[j] = float(base * scale)
             # ic(base, final_scores[j])

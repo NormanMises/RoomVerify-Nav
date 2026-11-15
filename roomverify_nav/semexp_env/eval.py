@@ -173,7 +173,6 @@ def create_frame(policy_infos: Dict[str, Any]) -> np.ndarray:
     return vis_img
 
 
-# 全局变量：存储带时间戳的视频目录（在第一次调用时初始化）
 _video_dir_with_timestamp: str = ""
 
 
@@ -193,7 +192,6 @@ def generate_video(frames: List[np.ndarray], ep_id: str, scene_id: str, infos: D
 
     base_video_dir = os.environ.get("VIDEO_DIR", "video_dir")
 
-    # 第一次调用时，创建带时间戳的子目录
     if not _video_dir_with_timestamp:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         _video_dir_with_timestamp = os.path.join(base_video_dir, timestamp)
