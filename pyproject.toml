@@ -59,11 +59,11 @@ reality = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["vlfm", "vlfm.*"]
+include = ["roomverify_nav", "roomverify_nav.*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-vlfm = ["vlm/classes.txt", "semexp_env/*.yaml"]
+roomverify_nav = ["vlm/classes.txt", "semexp_env/*.yaml"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`), Pyflakes (`F`), and import sorting (`I`)
@@ -144,5 +144,5 @@ strict_equality = true
 warn_unreachable = true
 warn_redundant_casts = true
 no_implicit_optional = true
-files = ['vlfm']
+files = ['roomverify_nav']
 exclude = "^(docker|.*external|.*thirdparty|.*install|.*build|.*_experimental|.*_pb2.py|.*_pb2_grpc.py)"

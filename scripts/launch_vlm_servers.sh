@@ -11,7 +11,7 @@ export VLFM_PYTHON=${VLFM_PYTHON:-$(command -v python)}
 export MOBILE_SAM_CHECKPOINT=${MOBILE_SAM_CHECKPOINT:-data/mobile_sam.pt}
 export GROUNDING_DINO_CONFIG=${GROUNDING_DINO_CONFIG:-GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py}
 export GROUNDING_DINO_WEIGHTS=${GROUNDING_DINO_WEIGHTS:-data/groundingdino_swint_ogc.pth}
-export CLASSES_PATH=${CLASSES_PATH:-vlfm/vlm/classes.txt}
+export CLASSES_PATH=${CLASSES_PATH:-roomverify_nav/vlm/classes.txt}
 export GROUNDING_DINO_PORT=${GROUNDING_DINO_PORT:-12181}
 export BLIP2ITM_PORT=${BLIP2ITM_PORT:-12182}
 export SAM_PORT=${SAM_PORT:-12183}
@@ -47,10 +47,10 @@ run_service() {
     tmux send-keys -t "$pane_id" -l "$service_command"
     tmux send-keys -t "$pane_id" Enter
 }
-run_service "$yolo_pane" vlfm.vlm.yolov7 "$YOLOV7_PORT"
-run_service "$gdino_pane" vlfm.vlm.grounding_dino "$GROUNDING_DINO_PORT"
-run_service "$sam_pane" vlfm.vlm.sam "$SAM_PORT"
-run_service "$blip_pane" vlfm.vlm.blip2itm "$BLIP2ITM_PORT"
+run_service "$yolo_pane" roomverify_nav.vlm.yolov7 "$YOLOV7_PORT"
+run_service "$gdino_pane" roomverify_nav.vlm.grounding_dino "$GROUNDING_DINO_PORT"
+run_service "$sam_pane" roomverify_nav.vlm.sam "$SAM_PORT"
+run_service "$blip_pane" roomverify_nav.vlm.blip2itm "$BLIP2ITM_PORT"
 
 printf 'Created window %s in tmux session %s. Model loading may take 90 seconds.\n' "$VLM_TMUX_WINDOW" "$VLM_TMUX_SESSION"
 printf 'View server output: tmux attach -t %s\n' "$VLM_TMUX_SESSION"

@@ -4,8 +4,8 @@
 
 RoomVerify-Nav is a training-free framework for finding objects in unseen indoor environments. It combines spatial room memory with frontier exploration and verifies detector proposals before committing to a navigation goal.
 
-- **Room-aware exploration:** room distributions inferred from scene objects are accumulated in a spatial memory. Target–room compatibility reranks candidate frontiers with a bounded weighting factor.
-- **Proposal–verification:** a vision-language model checks candidate detections on a box-annotated view. Accepted and rejected instance memories avoid repeated verification and maintain a persistent navigation goal.
+- Room-aware exploration accumulates room distributions inferred from scene objects in a spatial memory. Target-room compatibility reranks candidate frontiers with a bounded weighting factor.
+- Proposal verification uses a vision-language model to check candidate detections on a box-annotated view. The agent remembers accepted and rejected instances to avoid repeated verification and keep its navigation goal.
 
 Authors: Hongfei Yan, Xiangyi Zhu, Yanchao Lin, and Guorui Sheng.
 
@@ -32,7 +32,7 @@ git clone https://github.com/WongKinYiu/yolov7.git
 export PYTHONPATH="$PWD"
 ```
 
-The Python import package remains `vlfm`; the project distribution is named `roomverify-nav`. Run the following commands from the repository root with the environment active.
+The Python package is `roomverify_nav`. The distribution and Conda environment are named `roomverify-nav`. Run the following commands from the repository root with the environment active.
 
 ## Datasets and model weights
 
@@ -64,7 +64,7 @@ Generate Habitat's evaluation placeholder checkpoint:
 
 ```bash
 mkdir -p data
-python -m vlfm.utils.generate_dummy_policy
+python -m roomverify_nav.utils.generate_dummy_policy
 ```
 
 ## Model API configuration
@@ -85,7 +85,7 @@ The latest recorded experiments (October 18, 2026) used the following API settin
 | Verification reasoning effort | `low` |
 | Room inference reasoning effort | `low` |
 
-These values are provided in `.env.example`. Replace the placeholder API key and endpoint with your own credentials and provider deployment URL. The experiments used an Alibaba Cloud Model Studio OpenAI-compatible endpoint. The endpoint must support chat completions, JSON responses, image inputs, and the `enable_thinking`/`thinking` request fields sent by `vlfm/utils/query_llm.py`. Reasoning options must also be supported if configured. API credentials stay in `.env` and must not be committed.
+These values are provided in `.env.example`. Replace the placeholder API key and endpoint with your own credentials and provider deployment URL. The experiments used an Alibaba Cloud Model Studio OpenAI-compatible endpoint. The endpoint must support chat completions, JSON responses, image inputs, and the `enable_thinking`/`thinking` request fields sent by `roomverify_nav/utils/query_llm.py`. Reasoning options must also be supported if configured. API credentials stay in `.env` and must not be committed.
 
 ## Run
 
@@ -117,17 +117,17 @@ Evaluation outputs are written under `video/`; `outputs/` contains Hydra run out
 
 | Path | Purpose |
 | --- | --- |
-| `vlfm/policy/itm_policy.py` | Room-aware frontier selection; `ITMPolicyV2` is the default policy |
-| `vlfm/policy/base_objectnav_policy.py` | Detection verification, instance memory, and goal management |
-| `vlfm/mapping/room_memory_map.py` | Spatial room memory |
-| `vlfm/mapping/room_tracker.py` | Room-state tracking |
-| `vlfm/utils/target_guidance.py` | Target–room priors |
-| `vlfm/vlm/` | Local perception servers and clients |
+| `roomverify_nav/policy/itm_policy.py` | Room-aware frontier selection; `ITMPolicyV2` is the default policy |
+| `roomverify_nav/policy/base_objectnav_policy.py` | Detection verification, instance memory, and goal management |
+| `roomverify_nav/mapping/room_memory_map.py` | Spatial room memory |
+| `roomverify_nav/mapping/room_tracker.py` | Room-state tracking |
+| `roomverify_nav/utils/target_guidance.py` | Target–room priors |
+| `roomverify_nav/vlm/` | Local perception servers and clients |
 | `config/` | Habitat and policy configuration |
 
 ## License
 
-The project code is distributed under the [MIT License](LICENSE), with existing copyright and license notices preserved. External dependencies and pretrained models retain their own licenses; see [third-party notes](docs/third_party.md).
+The project uses the [MIT License](LICENSE) and retains existing copyright and license notices. External dependencies and pretrained models retain their own licenses; see [third-party notes](docs/third_party.md).
 
 ## Acknowledgments
 

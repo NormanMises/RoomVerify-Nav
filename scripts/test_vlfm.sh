@@ -125,7 +125,7 @@ export DYNAMIC_RELOCATION_VALUE_QUANTILE=${DYNAMIC_RELOCATION_VALUE_QUANTILE:-0.
 export DYNAMIC_RELOCATION_VALUE_RADIUS=${DYNAMIC_RELOCATION_VALUE_RADIUS:-0.5}
 
 # Compose and execute Habitat evaluation
-CMD="python -m vlfm.run habitat.dataset.data_path=$VLFM_DATA_PATH habitat_baselines.video_dir=$VLFM_VIDEO_DIR"
+CMD="python -m roomverify_nav.run habitat.dataset.data_path=$VLFM_DATA_PATH habitat_baselines.video_dir=$VLFM_VIDEO_DIR"
 if [ -n "$TEST_CONTENT_SCENES" ]; then
     CMD="$CMD habitat.dataset.content_scenes=[$TEST_CONTENT_SCENES]"
 fi
