@@ -1,0 +1,153 @@
+#!/bin/bash
+# Run from the repository root with the vlfm-new Conda environment active.
+# LLM settings are loaded exclusively from .env; runtime switches are listed below.
+# TEST_NUM_EPISODES=-1 runs the full split; use 5 for a smoke evaluation.
+# Optional: TEST_EPISODE_IDS=33,54 or TEST_CONTENT_SCENES=scene1,scene2.
+
+#
+# Episode selection and output directories
+TEST_NUM_EPISODES=${TEST_NUM_EPISODES:--1}
+
+#   TEST_EPISODE_IDS=33 TEST_NUM_EPISODES=1 ./scripts/test_vlfm.sh
+#   TEST_EPISODE_IDS=33,54 TEST_NUM_EPISODES=2 ./scripts/test_vlfm.sh
+#
+TEST_EPISODE_IDS=${TEST_EPISODE_IDS:-}
+
+VLFM_DATASET=${VLFM_DATASET:-hm3d_v1}
+case "$VLFM_DATASET" in
+    hm3d_v1) VLFM_DATA_PATH=data/datasets/objectnav/hm3d/v1/val/val.json.gz ;;
+    mp3d) VLFM_DATA_PATH=data/datasets/objectnav/mp3d/v1/val/val.json.gz ;;
+    *) echo "Error: unknown VLFM_DATASET=$VLFM_DATASET (expected hm3d_v1 or mp3d)" >&2; exit 1 ;;
+esac
+export VLFM_DATASET
+
+TEST_CONTENT_SCENES=${TEST_CONTENT_SCENES:-}
+VLFM_VIDEO_DIR=${VLFM_VIDEO_DIR:-video}
+
+# Optional map/figure export; requires frontier reranking
+export FIGURE_DUMP_DIR=${FIGURE_DUMP_DIR:-}
+
+# Room-aware frontier reranking; enabled explicitly at runtime
+export PROMPTING_FRONTIER_RERANK=${PROMPTING_FRONTIER_RERANK:-0}
+export PROMPTING_FRONTIER_RERANK_ALPHA=${PROMPTING_FRONTIER_RERANK_ALPHA:-0.8}
+export PROMPTING_FRONTIER_RERANK_ROOM_RADIUS=${PROMPTING_FRONTIER_RERANK_ROOM_RADIUS:-0.5}
+export PROMPTING_FRONTIER_RERANK_RETURN_FINAL=${PROMPTING_FRONTIER_RERANK_RETURN_FINAL:-1}
+
+# Load required API settings from .env without printing credentials
+VLFM_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$VLFM_REPO_ROOT" || exit 1
+if [[ ! -f "$VLFM_REPO_ROOT/.env" ]]; then
+    echo "Error: missing $VLFM_REPO_ROOT/.env. Copy .env.example and configure models, endpoint, and credentials." >&2
+    exit 1
+fi
+unset OPENAI_API_KEY OPENAI_API_BASE OPENAI_MODEL OPENAI_VISION_MODEL OPENAI_TEMPERATURE \
+    OPENAI_ENABLE_THINKING TARGET_GUIDANCE_REASONING_EFFORT TARGET_VERIFY_REASONING_EFFORT \
+    PROMPTING_ROOM_REASONER_REASONING_EFFORT
+set -a
+source "$VLFM_REPO_ROOT/.env" || exit 1
+set +a
+for llm_required_var in OPENAI_API_KEY OPENAI_API_BASE OPENAI_MODEL OPENAI_VISION_MODEL OPENAI_TEMPERATURE; do
+    if [[ -z "${!llm_required_var}" ]]; then
+        echo "Error: required variable $llm_required_var is missing from .env; see .env.example." >&2
+        exit 1
+    fi
+done
+
+# Proposal verification and accepted/rejected instance memory
+export FIRST_DETECTION_VERIFY_ENABLED=${FIRST_DETECTION_VERIFY_ENABLED:-0}
+# Comma-separated target classes; an empty value verifies all classes
+export FIRST_DETECTION_VERIFY_CATEGORIES=${FIRST_DETECTION_VERIFY_CATEGORIES-toilet,tv,chair}
+export TARGET_VERIFY_ACCEPT_RADIUS=${TARGET_VERIFY_ACCEPT_RADIUS:-1.0}
+export TARGET_VERIFY_REGION_Q=${TARGET_VERIFY_REGION_Q:-0.5}
+export TARGET_VERIFY_REJECT_TTL=${TARGET_VERIFY_REJECT_TTL:-80}
+export TARGET_VERIFY_BLACKLIST_RADIUS=${TARGET_VERIFY_BLACKLIST_RADIUS:-0.6}
+export TARGET_VERIFY_CENTER_RATIO=${TARGET_VERIFY_CENTER_RATIO:-0.25}
+export TARGET_VERIFY_MIN_AREA_GAIN=${TARGET_VERIFY_MIN_AREA_GAIN:-0.01}
+export TARGET_VERIFY_MIN_SCORE_GAIN=${TARGET_VERIFY_MIN_SCORE_GAIN:-0.05}
+export TARGET_VERIFY_MIN_DEPTH=${TARGET_VERIFY_MIN_DEPTH:-1.0}
+export TARGET_VERIFY_MAX_DEPTH=${TARGET_VERIFY_MAX_DEPTH:-4.75}
+
+# Optional near-goal verification
+export STOP_VERIFY_ENABLED=${STOP_VERIFY_ENABLED:-0}
+export STOP_VERIFY_NEAR_GOAL_DIST=${STOP_VERIFY_NEAR_GOAL_DIST:-1.2}
+export STOP_VERIFY_HISTORY_SIZE=${STOP_VERIFY_HISTORY_SIZE:-5}
+export STOP_VERIFY_GOAL_MATCH_RADIUS=${STOP_VERIFY_GOAL_MATCH_RADIUS:-1.0}
+export STOP_VERIFY_USE_HISTORY=${STOP_VERIFY_USE_HISTORY:-1}
+export STOP_VERIFY_NO_MATCH_FAIL_OPEN=${STOP_VERIFY_NO_MATCH_FAIL_OPEN:-0}
+export STOP_VERIFY_DEBUG_SAVE_IMAGES=${STOP_VERIFY_DEBUG_SAVE_IMAGES:-1}
+export STOP_VERIFY_DEBUG_DIR=${STOP_VERIFY_DEBUG_DIR:-}
+
+# Optional rejected-region memory and negative value bias
+export REJECTED_REGION_ENABLED=${REJECTED_REGION_ENABLED:-0}
+export REJECTED_REGION_RADIUS=${REJECTED_REGION_RADIUS:-0.75}
+export REJECTED_REGION_DECAY=${REJECTED_REGION_DECAY:-0.5}
+export NEGATIVE_BIAS_ENABLED=${NEGATIVE_BIAS_ENABLED:-0}
+export NEGATIVE_BIAS_LAMBDA=${NEGATIVE_BIAS_LAMBDA:-1.0}
+
+# Scene detection thresholds
+export SCENE_DETECTION_THRESHOLD=0.6
+export SCENE_DETECTION_MIN_BBOX_AREA_RATIO=0.001
+export SCENE_DETECTION_GDINO_ENABLED=${SCENE_DETECTION_GDINO_ENABLED:-0}
+export SCENE_DETECTION_GDINO_MIN_YOLO_CLASSES=${SCENE_DETECTION_GDINO_MIN_YOLO_CLASSES:-2}
+export SCENE_DETECTION_GDINO_INTERVAL=${SCENE_DETECTION_GDINO_INTERVAL:-5}
+export SCENE_DETECTION_GDINO_THRESHOLD=${SCENE_DETECTION_GDINO_THRESHOLD:-0.4}
+
+# Room tracking and inference
+export PROMPTING_ROOM_TRACKER_MAX_PER_CLASS=1
+
+export PROMPTING_ROOM_REASONER_CACHE_SIZE=128
+export PROMPTING_ROOM_REASONER_MIN_FREQ=0.15
+export PROMPTING_ROOM_REASONER_CONFIDENCE_THRESH=0.6
+export PROMPTING_ROOM_REASONER_TIMEOUT=5.0
+export PROMPTING_ROOM_REASONER_MIN_INTERVAL=10
+
+# Debug output and overlays
+export DEBUG_ROOM_REASONER=1
+export DEBUG_TARGET_GUIDANCE=${DEBUG_TARGET_GUIDANCE:-1}
+export DEBUG_ROOM_INFO=1
+export DEBUG_TIMING=1
+export DEBUG_FRONTIER=1
+export DEBUG_FRONTIER_VALUE=1
+export DEBUG_FRONTIER_VALUE_EVERY=1
+
+# Optional frontier-triggered rotation scan
+export DYNAMIC_RELOCATION_ENABLED=${DYNAMIC_RELOCATION_ENABLED:-0}
+export DYNAMIC_RELOCATION_SCAN_STEPS=${DYNAMIC_RELOCATION_SCAN_STEPS:-12}
+export DYNAMIC_RELOCATION_SCAN_COOLDOWN_STEPS=${DYNAMIC_RELOCATION_SCAN_COOLDOWN_STEPS:-12}
+export DYNAMIC_RELOCATION_FRONTIER_REACH_DIST=${DYNAMIC_RELOCATION_FRONTIER_REACH_DIST:-0.6}
+export DYNAMIC_RELOCATION_FRONTIER_Q=${DYNAMIC_RELOCATION_FRONTIER_Q:-0.5}
+export DYNAMIC_RELOCATION_MAX_SCANS_PER_EPISODE=${DYNAMIC_RELOCATION_MAX_SCANS_PER_EPISODE:-3}
+export DYNAMIC_RELOCATION_REGION_Q=${DYNAMIC_RELOCATION_REGION_Q:-1.0}
+export DYNAMIC_RELOCATION_REGION_REVISIT_STEPS=${DYNAMIC_RELOCATION_REGION_REVISIT_STEPS:-60}
+export DYNAMIC_RELOCATION_VALUE_THRESHOLD_MODE=${DYNAMIC_RELOCATION_VALUE_THRESHOLD_MODE:-mean_std}  # mean | mean_std | quantile
+export DYNAMIC_RELOCATION_VALUE_STD_K=${DYNAMIC_RELOCATION_VALUE_STD_K:-0.5}
+export DYNAMIC_RELOCATION_VALUE_QUANTILE=${DYNAMIC_RELOCATION_VALUE_QUANTILE:-0.75}
+export DYNAMIC_RELOCATION_VALUE_RADIUS=${DYNAMIC_RELOCATION_VALUE_RADIUS:-0.5}
+
+# Compose and execute Habitat evaluation
+CMD="python -m vlfm.run habitat.dataset.data_path=$VLFM_DATA_PATH habitat_baselines.video_dir=$VLFM_VIDEO_DIR"
+if [ -n "$TEST_CONTENT_SCENES" ]; then
+    CMD="$CMD habitat.dataset.content_scenes=[$TEST_CONTENT_SCENES]"
+fi
+
+if [ -n "$TEST_EPISODE_IDS" ]; then
+    export VLFM_EVAL_EPISODE_IDS="$TEST_EPISODE_IDS"
+    if [ "$TEST_NUM_EPISODES" = "-1" ]; then
+        IFS=',' read -ra _EP_ARR <<< "$TEST_EPISODE_IDS"
+        TEST_NUM_EPISODES=${#_EP_ARR[@]}
+    fi
+fi
+
+if [ "$TEST_NUM_EPISODES" != "-1" ]; then
+    echo "=========================================="
+    echo "Running $TEST_NUM_EPISODES episodes"
+    echo "=========================================="
+    CMD="$CMD habitat_baselines.test_episode_count=$TEST_NUM_EPISODES"
+else
+    echo "=========================================="
+    echo "Full evaluation: running all episodes"
+    echo "=========================================="
+fi
+
+echo "Running: $CMD"
+$CMD
