@@ -11,6 +11,8 @@ RoomVerify-Nav is a training-free framework for finding objects in unseen indoor
 
 The agent accumulates room distributions inferred from scene objects in a spatial memory. It uses target-room compatibility to rerank candidate frontiers with a bounded weighting factor. When a detector proposes a target, a vision-language model checks a box-annotated image. The agent remembers accepted and rejected instances to avoid repeated checks and keep its navigation goal.
 
+<p align="center"><img src="docs/assets/pipeline.png" alt="RoomVerify-Nav pipeline" width="100%"></p>
+
 ## Installation
 
 Use Linux, an NVIDIA GPU, Conda, Git, and tmux. The development environment uses Python 3.9, PyTorch 2.0.0, CUDA 11.8, and Habitat-Sim 0.2.4. GroundingDINO requires a compatible CUDA toolkit and compiler to build its extension.
