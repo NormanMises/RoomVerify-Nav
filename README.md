@@ -17,8 +17,8 @@ Use Linux, an NVIDIA GPU, CUDA 11.8-compatible drivers, Conda, Git, and tmux. Th
 git clone https://github.com/NormanMises/RoomVerify-Nav.git
 cd RoomVerify-Nav
 
-conda create -n vlfm-new python=3.9 -y
-conda activate vlfm-new
+conda create -n roomverify-nav python=3.9 -y
+conda activate roomverify-nav
 conda install -c conda-forge -c aihabitat habitat-sim=0.2.4 headless -y
 
 pip install torch==2.0.0 torchvision==0.15.1 --index-url https://download.pytorch.org/whl/cu118

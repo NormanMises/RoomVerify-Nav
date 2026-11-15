@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run from the repository root with the vlfm-new Conda environment active.
+# Run from the repository root with the roomverify-nav Conda environment active.
 # LLM settings are loaded exclusively from .env; runtime switches are listed below.
 # TEST_NUM_EPISODES=-1 runs the full split; use 5 for a smoke evaluation.
 # Optional: TEST_EPISODE_IDS=33,54 or TEST_CONTENT_SCENES=scene1,scene2.
