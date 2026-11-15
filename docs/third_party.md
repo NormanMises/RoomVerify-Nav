@@ -2,7 +2,7 @@
 
 The root MIT license covers this project's code subject to preserved notices. It does not replace the licenses or access terms of external components, model checkpoints, or datasets.
 
-- [VLFM](https://github.com/bdaiinstitute/vlfm): upstream implementation, MIT. Its copyright notice and license text are retained in `LICENSE` and source files.
+- [VLFM](https://github.com/rai-opensource/vlfm): upstream implementation, MIT. Its copyright notice and license text are retained in `LICENSE` and source files.
 - [Habitat-Lab](https://github.com/facebookresearch/habitat-lab) and [Habitat-Sim](https://github.com/facebookresearch/habitat-sim): simulator and evaluation dependencies. Check their license files and the notices on any reused source.
 - [YOLOv7](https://github.com/WongKinYiu/yolov7): external detection implementation, GPL-3.0. Its source and weights are not bundled here. Installation and any redistribution must account for its license; a separate download does not by itself resolve all licensing obligations.
 - [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO): external detection implementation, Apache-2.0. Check checkpoint terms separately.

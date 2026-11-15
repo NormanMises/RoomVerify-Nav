@@ -1,17 +1,21 @@
-# RoomVerify-Nav
+<h1 align="center">RoomVerify-Nav</h1>
+<h3 align="center">Room-Aware Frontier Reranking and Proposal–Verification for Zero-Shot Object Navigation</h3>
+<p align="center">
+  Hongfei Yan, Xiangyi Zhu, Yanchao Lin, and Guorui Sheng<br>
+  Ludong University
+</p>
 
-**Room-Aware Frontier Reranking and Proposal–Verification for Zero-Shot Object Navigation**
+## Overview
 
-RoomVerify-Nav is a training-free framework for finding objects in unseen indoor environments. It combines spatial room memory with frontier exploration and verifies detector proposals before committing to a navigation goal.
+RoomVerify-Nav is a training-free framework for finding objects in unseen indoor environments. It adds room-aware frontier reranking and detection verification to a navigation pipeline built around depth-based mapping, image-text similarity, and a PointNav planner.
 
-- Room-aware exploration accumulates room distributions inferred from scene objects in a spatial memory. Target-room compatibility reranks candidate frontiers with a bounded weighting factor.
-- Proposal verification uses a vision-language model to check candidate detections on a box-annotated view. The agent remembers accepted and rejected instances to avoid repeated verification and keep its navigation goal.
-
-Authors: Hongfei Yan, Xiangyi Zhu, Yanchao Lin, and Guorui Sheng.
+The agent accumulates room distributions inferred from scene objects in a spatial memory. It uses target-room compatibility to rerank candidate frontiers with a bounded weighting factor. When a detector proposes a target, a vision-language model checks a box-annotated image. The agent remembers accepted and rejected instances to avoid repeated checks and keep its navigation goal.
 
 ## Installation
 
-Use Linux, an NVIDIA GPU, CUDA 11.8-compatible drivers, Conda, Git, and tmux. The development environment uses Python 3.9, PyTorch 2.0.0, torchvision 0.15.1, and Habitat-Sim 0.2.4. GroundingDINO builds a CUDA extension and requires a compatible CUDA toolkit/compiler.
+Use Linux, an NVIDIA GPU, Conda, Git, and tmux. The development environment uses Python 3.9, PyTorch 2.0.0, CUDA 11.8, and Habitat-Sim 0.2.4. GroundingDINO requires a compatible CUDA toolkit and compiler to build its extension.
+
+### Create the environment
 
 ```bash
 git clone https://github.com/NormanMises/RoomVerify-Nav.git
@@ -24,19 +28,59 @@ conda install -c conda-forge -c aihabitat habitat-sim=0.2.4 headless -y
 pip install torch==2.0.0 torchvision==0.15.1 --index-url https://download.pytorch.org/whl/cu118
 pip install -e .
 pip install habitat-lab==0.2.420230405 habitat-baselines==0.2.420230405
+```
 
+### Install the detectors
+
+Clone both detector repositories inside this repository:
+
+```bash
 git clone https://github.com/IDEA-Research/GroundingDINO.git
 pip install --no-build-isolation -e ./GroundingDINO
-git clone https://github.com/WongKinYiu/yolov7.git
 
+git clone https://github.com/WongKinYiu/yolov7.git
 export PYTHONPATH="$PWD"
 ```
 
-The Python package is `roomverify_nav`. The distribution and Conda environment are named `roomverify-nav`. Run the following commands from the repository root with the environment active.
+Run the remaining commands from the repository root with `roomverify-nav` active.
 
-## Datasets and model weights
+## Download the datasets
 
-Dataset layout and Habitat configuration follow the standard ObjectNav setup. Obtain HM3D or MP3D scene assets through their official access procedures, and download the matching ObjectNav episodes using the [Habitat dataset instructions](https://github.com/facebookresearch/habitat-lab/blob/main/DATASETS.md). Keep the scene paths referenced by each episode file valid under `data/scene_datasets/`.
+### HM3D
+
+Obtain access to the HM3D scene assets through the [official dataset instructions](https://aihabitat.org/datasets/hm3d/). Set your Matterport credentials in the current shell:
+
+```bash
+MATTERPORT_TOKEN_ID=your-token-id
+MATTERPORT_TOKEN_SECRET=your-token-secret
+DATA_DIR="$PWD/data"
+```
+
+Download the validation scenes used for evaluation:
+
+```bash
+python -m habitat_sim.utils.datasets_download \
+  --username "$MATTERPORT_TOKEN_ID" \
+  --password "$MATTERPORT_TOKEN_SECRET" \
+  --uids hm3d_val_v0.2 \
+  --data-path "$DATA_DIR"
+```
+
+Download and extract the HM3D ObjectNav episodes:
+
+```bash
+mkdir -p data/datasets/objectnav/hm3d
+curl -L https://dl.fbaipublicfiles.com/habitat/data/datasets/objectnav/hm3d/v1/objectnav_hm3d_v1.zip \
+  -o data/objectnav_hm3d_v1.zip
+unzip data/objectnav_hm3d_v1.zip -d data/datasets/objectnav/hm3d
+mv data/datasets/objectnav/hm3d/objectnav_hm3d_v1 data/datasets/objectnav/hm3d/v1
+```
+
+### MP3D
+
+Follow the [Habitat dataset instructions](https://github.com/facebookresearch/habitat-lab/blob/main/DATASETS.md) to obtain MP3D scenes and ObjectNav episodes. Place the validation episodes at `data/datasets/objectnav/mp3d/v1/val/val.json.gz`. Keep each episode's scene path valid under `data/scene_datasets/`.
+
+The expected episode layout is:
 
 ```text
 data/
@@ -49,31 +93,33 @@ data/
     └── ...
 ```
 
-Download these checkpoints into `data/`:
+## Download the model weights
 
-| File | Source |
+Save these checkpoints in `data/`:
+
+| Checkpoint | Download source |
 | --- | --- |
 | `mobile_sam.pt` | [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) |
 | `groundingdino_swint_ogc.pth` | [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO) |
 | `yolov7-e6e.pt` | [YOLOv7](https://github.com/WongKinYiu/yolov7) |
-| `pointnav_weights.pth` | [PointNav checkpoint](https://github.com/bdaiinstitute/vlfm/blob/main/data/pointnav_weights.pth) |
+| `pointnav_weights.pth` | [PointNav checkpoint](https://github.com/rai-opensource/vlfm/blob/main/data/pointnav_weights.pth) |
 
-Datasets and model weights are downloaded separately and remain subject to their respective terms. BLIP-2 and tokenizer assets may also download on first launch.
+BLIP-2 and tokenizer assets may download on first launch. Datasets and model weights are not included in this repository and retain their own terms.
 
-Generate Habitat's evaluation placeholder checkpoint:
+Generate the placeholder checkpoint required by Habitat's evaluation runner:
 
 ```bash
 mkdir -p data
 python -m roomverify_nav.utils.generate_dummy_policy
 ```
 
-## Model API configuration
+## Configure the model API
 
 ```bash
 cp .env.example .env
 ```
 
-The latest recorded experiments (October 18, 2026) used the following API settings:
+Edit `.env` with your API key and deployment endpoint. The latest recorded experiments, on October 18, 2026, used these settings:
 
 | Setting | Value |
 | --- | --- |
@@ -85,45 +131,56 @@ The latest recorded experiments (October 18, 2026) used the following API settin
 | Verification reasoning effort | `low` |
 | Room inference reasoning effort | `low` |
 
-These values are provided in `.env.example`. Replace the placeholder API key and endpoint with your own credentials and provider deployment URL. The experiments used an Alibaba Cloud Model Studio OpenAI-compatible endpoint. The endpoint must support chat completions, JSON responses, image inputs, and the `enable_thinking`/`thinking` request fields sent by `roomverify_nav/utils/query_llm.py`. Reasoning options must also be supported if configured. API credentials stay in `.env` and must not be committed.
+The examples in `.env.example` use these values. Replace the placeholder endpoint with your own Alibaba Cloud Model Studio deployment URL. The client requires chat completions, JSON responses, image inputs, and support for the `enable_thinking`, `thinking`, and configured reasoning fields. Keep API credentials in `.env` and do not commit them.
 
-## Run
+## Evaluation within Habitat
 
-Start the four local model servers:
+### Start the model servers
 
 ```bash
 ./scripts/launch_vlm_servers.sh
+```
+
+The script starts four Flask servers in a detached tmux session. Wait for all models to load before starting evaluation. Inspect their output with:
+
+```bash
 tmux attach -t vlm-servers-12181
 ```
 
-Wait for all four servers to finish loading. Detach with `Ctrl-b`, then `d`. Default ports are 12181 (GroundingDINO), 12182 (BLIP-2 ITM), 12183 (SAM), and 12184 (YOLOv7).
+Detach with `Ctrl-b`, then `d`. The default ports are 12181 for GroundingDINO, 12182 for BLIP-2 ITM, 12183 for SAM, and 12184 for YOLOv7.
 
-Run a five-episode HM3D evaluation with room-aware reranking and proposal verification enabled:
+### Run on HM3D
+
+Enable room-aware reranking and proposal verification:
 
 ```bash
 PROMPTING_FRONTIER_RERANK=1 \
 FIRST_DETECTION_VERIFY_ENABLED=1 \
-TEST_NUM_EPISODES=5 \
 ./scripts/test_vlfm.sh
 ```
 
-Feature switches default to off in the script; enable them explicitly as above. Verification defaults to the `toilet,tv,chair` categories. Set `FIRST_DETECTION_VERIFY_CATEGORIES=''` to verify all target categories.
+This evaluates the full validation split. Add `TEST_NUM_EPISODES=5` for a short run. To select one episode, add `TEST_EPISODE_IDS=33 TEST_NUM_EPISODES=1`.
 
-Use `TEST_NUM_EPISODES=-1` for a full evaluation, `VLFM_DATASET=mp3d` for MP3D, or `TEST_EPISODE_IDS=33 TEST_NUM_EPISODES=1` to select an episode. `scripts/test_vlfm.sh` lists runtime switches; `config/experiments/vlfm_objectnav_hm3d.yaml` defines the policy and detection thresholds. LLM settings belong in `.env`.
+### Run on MP3D
 
-Evaluation outputs are written under `video/`; `outputs/` contains Hydra run outputs. Video export can be enabled in the experiment YAML via `habitat_baselines.eval.video_option: ["disk"]`.
+```bash
+VLFM_DATASET=mp3d \
+PROMPTING_FRONTIER_RERANK=1 \
+FIRST_DETECTION_VERIFY_ENABLED=1 \
+./scripts/test_vlfm.sh
+```
 
-## Code layout
+Both feature switches default to off. Proposal verification defaults to the `toilet,tv,chair` categories; set `FIRST_DETECTION_VERIFY_CATEGORIES=''` to verify all target categories.
 
-| Path | Purpose |
-| --- | --- |
-| `roomverify_nav/policy/itm_policy.py` | Room-aware frontier selection; `ITMPolicyV2` is the default policy |
-| `roomverify_nav/policy/base_objectnav_policy.py` | Detection verification, instance memory, and goal management |
-| `roomverify_nav/mapping/room_memory_map.py` | Spatial room memory |
-| `roomverify_nav/mapping/room_tracker.py` | Room-state tracking |
-| `roomverify_nav/utils/target_guidance.py` | Target–room priors |
-| `roomverify_nav/vlm/` | Local perception servers and clients |
-| `config/` | Habitat and policy configuration |
+`scripts/test_vlfm.sh` lists runtime switches. The policy and detection thresholds are in `config/experiments/vlfm_objectnav_hm3d.yaml`; model API settings belong in `.env`.
+
+Evaluation outputs go under `video/`, and Hydra outputs go under `outputs/`. To export videos, set `habitat_baselines.eval.video_option: ["disk"]` in the experiment YAML.
+
+Stop the model servers when finished to release GPU memory:
+
+```bash
+tmux kill-session -t vlm-servers-12181
+```
 
 ## License
 
@@ -131,4 +188,4 @@ The project uses the [MIT License](LICENSE) and retains existing copyright and l
 
 ## Acknowledgments
 
-We thank the authors of [VLFM](https://github.com/bdaiinstitute/vlfm) for their open-source implementation, which provides the foundation for this project.
+We thank the authors of [VLFM](https://github.com/rai-opensource/vlfm) for the open-source implementation on which this project is based.
